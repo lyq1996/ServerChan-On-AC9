@@ -1,16 +1,16 @@
 #!/bin/sh
-export PATH='/etc/storage/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin'
-export LD_LIBRARY_PATH=/lib:
+export PATH='/usr/sbin:/usr/bin:/sbin:/bin'
 
 # Paraments
 resub=1
-push1="1"	# Push online devices
-serverchan_enable="1"	# enable ServerChan
-serverchan_sckey=""	# server chan api key
-APITOKEN="" # Your API Token
-ZONEID=""           # Your zone id, hex16 string
-RECORDNAME=""                         # Your DNS record name, e.g. sub.example.com
-RECORDTTL="1"                                       # TTL in seconds (1=auto)
+push1="1"				# Push online devices
+push_ddns="1"			# Push ddns message
+serverchan_enable="1"	# Enable ServerChan
+serverchan_sckey=""		# ServerChan api key
+APITOKEN="" 			# Your API Token
+ZONEID=""           	# Your zone id, hex16 string
+RECORDNAME=""           # Your DNS record name, e.g. sub.example.com
+RECORDTTL="1"           # TTL in seconds (1=auto)
 
 touch /tmp/home/root/lastIPAddress
 [ ! -s /tmp/home/root/lastIPAddress ] && echo "爷刚启动！" > /tmp/home/root/lastIPAddress
@@ -66,9 +66,11 @@ test(){
 	alias=`cat /var/lib/misc/dnsmasq.leases`
 	arp | sed 's/(//;s/)//' | while read -r DESC IP AT MAC ETH ON IFACE
     do
-	    NAME=`echo "$alias" | awk '/'$MAC'\ '$IP'/{print $4}'`
-        echo $NAME $IP $MAC >> /tmp/home/root/newhostname.txt
-    done
+	    if [ $IFACE ]; then
+		NAME=`echo "$alias" | awk '/'$MAC'\ '$IP'/{print $4}'`
+        echo $NAME $IP >> /tmp/home/root/newhostname.txt
+		fi
+	done
 }
 
 while [ "$serverchan_enable" = "1" ];
@@ -87,7 +89,7 @@ local lastIP=$(lastIPAddress)
 
 if [ "$lastIP" != "$hostIP" ] && [ ! -z "$hostIP" ] ; then
 	sleep 60
-    Check again
+    # Check again
 	local hostIP=$(getIpAddress)
     local lastIP=$(lastIPAddress)
  fi
@@ -97,8 +99,10 @@ if [ "$lastIP" != "$hostIP" ] && [ ! -z "$hostIP" ] ; then
     logger -t "公网IP变动" "上次 IP: ${lastIP}"
 	ddnsUpdate ${hostIP}
 	if [ "$?" == "0" ] ; then
-		curl -s "http://sc.ftqq.com/$serverchan_sckey.send?text=AC9:公网IP变动" -d "&desp=${hostIP}" &
-		logger -t "wechat push" "pushed"
+		if [ "$push_ddns" = "1" ] ; then
+			curl -s "http://sc.ftqq.com/$serverchan_sckey.send?text=AC9的DDNS更新啦" -d "&desp=${hostIP}" &
+			logger -t "wechat push" "IP: ${hostIP} pushed"
+		fi
 		echo -n $hostIP > /tmp/home/root/lastIPAddress
 	fi
 fi
@@ -115,22 +119,22 @@ if [ "$push1" = "1" ] ; then
     # 读取已在线设备名称
     touch /tmp/home/root/hostname_online.txt
     [ ! -s /tmp/home/root/hostname_online.txt ] && echo "接入设备名称" > /tmp/home/root/hostname_online.txt
-    # 上线设备
+    # 上线
 	# awk 'NR==FNR{a[$0]++} NR>FNR&&!a[$0]' /tmp/home/root/hostname_online.txt /tmp/home/root/newhostname.txt > /tmp/home/root/newhostname_uniqe_online.txt
     awk 'NR==FNR{a[$0]++} NR>FNR&&a[$0]' /tmp/home/root/hostname_online.txt /tmp/home/root/newhostname.txt > /tmp/home/root/newhostname_same_online.txt
     awk 'NR==FNR{a[$0]++} NR>FNR&&!a[$0]' /tmp/home/root/newhostname_same_online.txt /tmp/home/root/newhostname.txt > /tmp/home/root/newhostname_uniqe_online.txt
     if [ -s "/tmp/home/root/newhostname_uniqe_online.txt" ] ; then
 		content=`cat /tmp/home/root/newhostname_uniqe_online.txt | grep -v "^$"`
-		curl -s "http://sc.ftqq.com/$serverchan_sckey.send?text=【家中AC9有设备上线】" -d "&desp=${content}" &
-		logger -t "wechat push" "设备上线:${content}"
+		curl -s "http://sc.ftqq.com/$serverchan_sckey.send?text=AC9有设备上线啦" -d "&desp=${content}" &
+		logger -t "wechat push" "设备上线: ${content} pushed"
 		cat /tmp/home/root/newhostname_uniqe_online.txt | grep -v "^$" >> /tmp/home/root/hostname_online.txt
     fi
     # 下线
     awk 'NR==FNR{a[$0]++} NR>FNR&&!a[$0]' /tmp/home/root/newhostname.txt /tmp/home/root/hostname_online.txt > /tmp/home/root/newhostname_uniqe_offline.txt
     if [ -s "/tmp/home/root/newhostname_uniqe_offline.txt" ] ; then
        content=`cat /tmp/home/root/newhostname_uniqe_offline.txt | grep -v "^$"`
-       curl -s "http://sc.ftqq.com/$serverchan_sckey.send?text=【家中AC9有设备下线】" -d "&desp=${content}" &
-       logger -t "wechat push" "设备下线:${content}"
+       curl -s "http://sc.ftqq.com/$serverchan_sckey.send?text=AC9有设备下线啦" -d "&desp=${content}" &
+       logger -t "wechat push" "设备下线: ${content} pushed"
        cat /tmp/home/root/newhostname.txt | grep -v "^$" > /tmp/home/root/hostname_online.txt
     fi
 fi
