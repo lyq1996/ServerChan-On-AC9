@@ -71,7 +71,7 @@ ddns_update() {
         -H "X-Auth-Key: $api_key" \
         -H "Content-Type:application/json"
     )
-    record_id=$(echo ${response} | sed -n "s/.*\"id\":\s\"\([^\"]*\)\".*\"name\":\s\"${record_name}\".*/\1/p")
+    record_id=$(echo ${response} | sed -n "s/.*\"id\":\"\([^\"]*\)\".*\"name\":\"${record_name}\".*/\1/p")
 
     # Update DNS record
     response=$(
